@@ -1,0 +1,62 @@
+services:
+  n8n:
+    image: n8nio/n8n:latest
+    restart: unless-stopped
+    environment:
+      N8N_HOST: ${N8N_DOMAIN}
+      N8N_PROTOCOL: https
+      N8N_EDITOR_BASE_URL: https://${N8N_DOMAIN}/
+      WEBHOOK_URL: https://${N8N_DOMAIN}/
+      N8N_PROXY_HOPS: 1
+      N8N_SECURE_COOKIE: "true"
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}
+      GENERIC_TIMEZONE: Africa/Cairo
+      TZ: Africa/Cairo
+    volumes:
+      - n8n_data:/home/node/.n8n
+    expose:
+      - "5678"
+    networks: [dawaa]
+
+  api:
+    build:
+      context: ../backend
+    restart: unless-stopped
+    environment:
+      PORT: 3000
+      N8N_WEBHOOK_URL: ${N8N_WEBHOOK_URL}
+      CHAT_SHARED_SECRET: ${CHAT_SHARED_SECRET}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
+      REQUEST_TIMEOUT_MS: ${REQUEST_TIMEOUT_MS:-30000}
+      CHAT_RATE_LIMIT_PER_MINUTE: ${CHAT_RATE_LIMIT_PER_MINUTE:-12}
+      TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-1}
+    expose:
+      - "3000"
+    depends_on: [n8n]
+    networks: [dawaa]
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    environment:
+      N8N_DOMAIN: ${N8N_DOMAIN}
+      API_DOMAIN: ${API_DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [n8n, api]
+    networks: [dawaa]
+
+volumes:
+  n8n_data:
+  caddy_data:
+  caddy_config:
+
+networks:
+  dawaa:
+    driver: bridge
